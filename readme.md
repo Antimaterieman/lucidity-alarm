@@ -26,7 +26,7 @@ the alarm clock will decide for one of the voices from a random subdirectory eac
 This is based on an observation: If the TV is running in the morning
 dreams are affected by its sound.
 
-## How to Controbute
+## How to Contribute
 
 **Those super akward audio recordings in the audio dir**
 
