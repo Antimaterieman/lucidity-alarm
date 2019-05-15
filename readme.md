@@ -35,7 +35,7 @@ own recorded voice strange. It would be nice if people could contribute voices l
 enough to share it in the internet. Each subdirectory should be one set of audio
 files that can be played in one night. Next night it's a different voice/subdirectory.
 Be creative in what to say. You can send it as high quality audio files to me and I will compress it or
-you compress it yourself to .ogg files.
+you can compress it yourself to .ogg files.
 
 ## Dependencies
 
