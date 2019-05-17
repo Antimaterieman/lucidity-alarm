@@ -34,8 +34,8 @@ Well, I think my voice sounds horrible in those files but afaik it's normal to f
 own recorded voice strange. It would be nice if people could contribute voices like that and be brave
 enough to share it in the internet. Each subdirectory should be one set of audio
 files that can be played in one night. Next night it's a different voice/subdirectory.
-Be creative in what to say. You can send it as high quality audio files to me and I will compress it or
-you can compress it yourself to .ogg files.
+Be creative in what to say. You can send it as a single high quality audio recording to me and I can
+cut and compress it, or you can cut and compress it yourself to .ogg files.
 
 ## Dependencies
 
