@@ -47,6 +47,8 @@ parser.add_argument('--unlock', dest='unlock', help='Will try to unlock the scre
 parser.add_argument('--cec-on', dest='cec', help='Will try to turn on the monitor/TV using ' +
     'CEC over hdmi. There aren\'t many computer devices that support this. The raspberry does. Default False',
     default=False, action='store_true')
+parser.add_argument('--relax', dest='relax', help='The maximum multiple of the audio file duration to wait until the ' +
+    'next audio file playback. Default 10', default=10, type=int)
 parser.add_argument('--debug', dest='debug', help=argparse.SUPPRESS, default=False, action='store_true')
 
 args = parser.parse_args()
@@ -162,7 +164,7 @@ def apply_fx(fx, a):
     return a.astype(np.int16)
 
 
-def play_music(dir, effect):
+def play_music(dir, effect, relax):
     """dir is the path to where all the sound files are stored,
     will select it or one of it's subdirectories randomly to
     decide about which sound files to use. Will not recurse
@@ -183,18 +185,22 @@ def play_music(dir, effect):
         reverb = random.randint(0, effect)
         reverse = random.randint(0, 1) == True
 
-    logger.info('todays pitch: {}'.format(pitch))
-    logger.info('todays reverb: {}, reverse: {}'.format(reverb, reverse))
-
     # start playing random files from the provided path and its subdirs
     # apply pitch to all files
-    all_sound_files = [list(map(lambda x: dirpath + os.sep + x, filenames)) for dirpath, _, filenames in os.walk(dir)]
+    all_sound_files = [(dirpath, list(map(lambda x: dirpath + os.sep + x, filenames))) for dirpath, _, filenames in os.walk(dir)]
 
     # select a subdir randomly (including the root dir and it's direct audio childs,
     # which coveres for there not being subdirs)
     sound_files = []
+    selected_path = ''
     while len(sound_files) == 0:
-        sound_files = all_sound_files[random.randint(0, len(all_sound_files) - 1)]
+        selection = all_sound_files[random.randint(0, len(all_sound_files) - 1)]
+        sound_files = selection[1]
+        selected_path = selection[0]
+
+    logger.info('todays pitch: {}'.format(pitch))
+    logger.info('todays reverb: {}, reverse: {}'.format(reverb, reverse))
+    logger.info('todays folder: "{}"'.format(selected_path))
 
     # https://github.com/carlthome/python-audio-effects
     fx = None
@@ -225,13 +231,13 @@ def play_music(dir, effect):
         else:
             a = np.concatenate([a] + [zeros] * 2)
 
-        a = (a * random.random()).astype(np.int16)
+        a = (a * random.random() * volume / 100).astype(np.int16)
         a = apply_fx(fx, a)
 
         wet = pygame.sndarray.make_sound(a)
         pygame.mixer.Sound.play(wet)
         
-        time.sleep(duration * random.random() * 2)
+        time.sleep(duration * random.random() * relax)
 
 
 while True:
@@ -264,7 +270,7 @@ while True:
         fading_thread = None
         if args.fade_duration:
             logger.info('fading in...')
-            fading_thread = threading.Thread(target=fade_volume, args=[args.fade_duration, 0, 100])
+            fading_thread = threading.Thread(target=fade_volume, args=[args.fade_duration, 0, args.max_volume])
             fading_thread.start()
 
         # try to unlock linux screensaver with dbus
@@ -276,7 +282,7 @@ while True:
         
         # play music in extra process and provide the path and max random effect level as params.
         # in main thread check if end time is reached and then stop
-        music_thread = threading.Thread(target=play_music, args=[args.audio_path, args.effect])
+        music_thread = threading.Thread(target=play_music, args=[args.audio_path, args.effect, args.relax])
         music_thread.start()
 
         # wait for the max duration to be reached
@@ -301,7 +307,7 @@ while True:
             # first make sure the previous job for fading in is done
             fading_thread.join()
         logger.info('fading out...')
-        fading_thread = threading.Thread(target=lambda: fade_volume(args.fade_duration, 100, 0))
+        fading_thread = threading.Thread(target=lambda: fade_volume(args.fade_duration, volume, 0))
         fading_thread.start()
         fading_thread.join()
 
