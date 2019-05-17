@@ -49,9 +49,16 @@ pip3 install pysndfx
 
 ## Roadmap
 
+**done**
 - make the command line work, playing sounds as described above
+- provide at least some audio files
+
+**todo**
 - make GUI and add button to add it to autostart and make it minimizable to the system tray
 - collect audiorecordings for lucid dream induction from members of lucid dreaming forums
-- pie in the sky 1: if it works, make android app that does the same thing
-- pie in the sky 2: make android app that detects movements and sounds in bed, sends message to the computer that
+- make sure it works on windows
+
+**pies in the sky**
+- if it works, make android app that does the same thing
+- make android app that detects movements and sounds in bed, sends message to the computer that
 an REM phase might be happening right now and increase the chance of being triggered at that time
