@@ -26,16 +26,16 @@ the alarm clock will decide for one of the voices from a random subdirectory eac
 This is based on an observation: If the TV is running in the morning
 dreams are affected by its sound.
 
-## How to Controbute
+## How to Contribute
 
 **Those super akward audio recordings in the audio dir**
 
 Well, I think my voice sounds horrible in those files but afaik it's normal to find your
-own recorded voice strange because you hear it differently the majority of your time,
-through vibrations in your skull. It would be nice if people could contribute voices like that and be brave
+own recorded voice strange. It would be nice if people could contribute voices like that and be brave
 enough to share it in the internet. Each subdirectory should be one set of audio
 files that can be played in one night. Next night it's a different voice/subdirectory.
-Be creative in what to say. Please compress them to e.g. mp3.
+Be creative in what to say. You can send it as high quality audio files to me and I will compress it or
+you can compress it yourself to .ogg files.
 
 ## Dependencies
 
