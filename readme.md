@@ -44,7 +44,7 @@ or you can cut and compress it yourself to .ogg files and directly make a pull r
 
 ```
 apt install sox
-pip3 install sox
+pip3 install pysndfx
 ```
 
 ## Roadmap
@@ -54,6 +54,7 @@ pip3 install sox
 - provide at least some audio files
 
 **todo**
+- add piping out of and into np arrays to python sox, so that pysndfx can be replaced
 - make GUI and add button to add it to autostart and make it minimizable to the system tray
 - collect audiorecordings for lucid dream induction from members of lucid dreaming forums
 - make sure it works on windows
