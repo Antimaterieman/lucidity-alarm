@@ -203,21 +203,17 @@ def play_music(dir, effect, relax):
     logger.info('todays folder: "{}"'.format(selected_path))
 
     # https://github.com/carlthome/python-audio-effects
-    fx = None
+    fx = (
+        AudioEffectsChain()
+        .speed(pitch)
+    )
+
+    # reverb
     if reverse:
-        fx = (
-            AudioEffectsChain()
-            .speed(pitch)
-            .reverse()
-            .reverb(reverberance=reverb)
-            .reverse()
-        )
-    else:
-        fx = (
-            AudioEffectsChain()
-            .speed(pitch)
-            .reverb(reverberance=reverb)
-        )
+        fx.reverse()
+    fx.reverb(reverberance=reverb)
+    if reverse:
+        fx.reverse()
 
     while playing:
         original = pygame.mixer.Sound(sound_files[random.randint(0, len(sound_files) - 1)])
@@ -231,13 +227,15 @@ def play_music(dir, effect, relax):
         else:
             a = np.concatenate([a] + [zeros] * 2)
 
-        a = (a * random.random() * volume / 100).astype(np.int16)
+	# between 33% and 100% of the current volume
+        a = (a * (1/3 + random.random() * 2/3) * volume / 100).astype(np.int16)
         a = apply_fx(fx, a)
 
         wet = pygame.sndarray.make_sound(a)
         pygame.mixer.Sound.play(wet)
         
-        time.sleep(duration * random.random() * relax)
+	# at least a third of the duration, at most duration * relax
+        time.sleep(duration * (1/3 + random.random() * 2/3) * relax)
 
 
 while True:

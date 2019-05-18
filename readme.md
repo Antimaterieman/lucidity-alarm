@@ -1,4 +1,4 @@
-(not working yet, not playing any sound)
+(only a command line utility at the moment, but basically running)
 
 # Lucidity Alarm
 **Super Random Fun Time Alarm Clock**
@@ -44,7 +44,7 @@ or you can cut and compress it yourself to .ogg files and directly make a pull r
 
 ```
 apt install sox
-pip3 install pysndfx
+pip3 install sox
 ```
 
 ## Roadmap
