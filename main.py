@@ -25,17 +25,17 @@ parser.add_argument('--script', metavar='PATH', dest='script', help='optional co
     'the alarm is triggered. Examples: "beep", "./some/funky/script.sh", which will be executed in a new Thread ' +
     'while the alarm clock is running. The alarm will not turn off until the script is terminated', type=str)
 parser.add_argument('--audio', metavar='PATH', dest='audio_path', help='path to a folder that contains audiofiles ' +
-    'for the alarm. If that folder contains subdirectories, will decide for a single one of those subdirectories ' +
-    'each day and only play files out of that one. They will be played until this script is stopped or --max-duration ' +
-    'is reached', type=str)
+    'for the alarm (.ogg). If that folder contains subdirectories, will decide for a single one of those ' +
+    'subdirectories each day and only play files out of that one. They will be played until this script is stopped ' +
+    'or --max-duration is reached', type=str)
 parser.add_argument('--max-duration', metavar='INT', dest='max_duration', help='after how many minutes to stop' +
     ' the alarm. Default: 30. If 0, will go on forever', type=float, default=30)
 parser.add_argument('--fade-duration', metavar='INT', dest='fade_duration', help='if provided and greater than ' +
     '0, will start quiet and increase to --max-volume within the specified time in minutes (may also be a float: 0.5 ' +
     'for 30 secs). After another --max-duration of time has passed, decreases the volume in the same way, so this is ' +
     'added to the total duration twice. Default 0', default=0, type=float)
-parser.add_argument('--max-volume', metavar='INT', dest='max_volume', help='how many percent volume are the ' +
-    'limit. Default 100', default=100, type=int)
+parser.add_argument('--max-volume', metavar='INT', dest='max_volume', help='it won\'t go louder than this. ' +
+    'Default 50', default=50, type=int)
 parser.add_argument('--effect', metavar='FLOAT', dest='effect', help='Between 0 and 100, how crazy ' +
     'the effects added to the voices should be. Will be change each night, so sometimes it sounds normal,' +
     'sometimes it\'s ghost like. Defaults to 100', default=100, type=int)
@@ -48,6 +48,11 @@ parser.add_argument('--cec-on', dest='cec', help='Will try to turn on the monito
 parser.add_argument('--relax', dest='relax', help='The maximum multiple of the audio file duration to wait until the ' +
     'next audio file playback. Default 10', default=10, type=int)
 parser.add_argument('--debug', dest='debug', help=argparse.SUPPRESS, default=False, action='store_true')
+parser.add_argument('--music', metavar='PATH', dest='music_path', help='path to a folder that contains music files ' +
+    'for the alarm (.ogg). Will play a random track out of it or any of its subdirectories', type=str)
+parser.add_argument('--music-volume', metavar='INT', dest='music_volume', help='How loud to play the music in ' + 
+    'percent.', default=50, type=int)
+
 
 args = parser.parse_args()
 
@@ -175,6 +180,7 @@ def play_music(dir, effect, relax):
     # select random effect parameters
     pitch = 1
     reverb = 0
+    reverse_reverb = 0
     reverse = False
     if effect > 0:
         # higher pitches are more annoying or something
@@ -182,10 +188,8 @@ def play_music(dir, effect, relax):
         lowest_pitch = 0.7
         pitch = (((random.random() * (highest_pitch - lowest_pitch)) + lowest_pitch) * effect + 1 * (100 - effect)) / 100
         reverb = random.randint(0, effect)
-        reverse = random.randint(0, 1) == True
-        if reverse:
-            # the reverse reverb was quite annoying for me when there is was too much
-            reverb /= 2
+        # the reverse reverb was quite annoying for me when there was too much. have less of it
+        reverse_reverb = random.randint(0, effect / 3)
 
     # start playing random files from the provided path and its subdirs
     # apply pitch to all files
@@ -201,7 +205,7 @@ def play_music(dir, effect, relax):
         selected_path = selection[0]
 
     logger.info('todays pitch: {}'.format(pitch))
-    logger.info('todays reverb: {}, reverse: {}'.format(reverb, reverse))
+    logger.info('todays reverb: {}, reverse: {}'.format(reverb, reverse_reverb))
     logger.info('todays folder: "{}"'.format(selected_path))
 
     # https://github.com/carlthome/python-audio-effects
@@ -210,13 +214,12 @@ def play_music(dir, effect, relax):
         .speed(pitch)
     )
 
-    if reverse:
-        # add both reverse and normal reverb
+    if reverse_reverb > 0:
         fx.reverse()
-        fx.reverb(reverberance=reverb / 2)
+        fx.reverb(reverberance=reverse_reverb)
         fx.reverse()
-    # reverb
-    fx.reverb(reverberance=reverb)
+    if reverb > 0:
+        fx.reverb(reverberance=reverb)
 
     while playing:
         original = pygame.mixer.Sound(sound_files[random.randint(0, len(sound_files) - 1)])
@@ -231,7 +234,12 @@ def play_music(dir, effect, relax):
             a = np.concatenate([a] + [zeros] * 2)
 
 	    # between 33% and 100% of the current volume
-        a = (a * (1/3 + random.random() * 2/3) * volume / 100).astype(np.int16)
+        a = (a * (1/3 + random.random() * 2/3) * volume / 100)
+
+        # normalize to +- 32768 (16 bit)
+        a = (a * (2**16 / 2) / max(abs(a.max()), abs(a.min())))
+
+        a = a.astype(np.int16)
         a = apply_fx(fx, a)
 
         wet = pygame.sndarray.make_sound(a)
