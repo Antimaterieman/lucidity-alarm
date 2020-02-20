@@ -52,7 +52,7 @@ parser.add_argument('--debug', dest='debug', help=argparse.SUPPRESS, default=Fal
 parser.add_argument('--music', metavar='PATH', dest='music_path', help='path to a folder that contains music files ' +
     'for the alarm (.ogg). Will play a random track out of it or any of its subdirectories', type=str)
 parser.add_argument('--music-volume', metavar='INT', dest='music_volume', help='How loud to play the music in ' + 
-    'percent.', default=50, type=int)
+    'percent.', default=60, type=int)
 
 
 args = parser.parse_args()
@@ -197,7 +197,7 @@ def play_audio(dir, effect):
     all_sound_files = [(dirpath, list(map(lambda x: dirpath + os.sep + x, filenames))) for dirpath, _, filenames in os.walk(dir)]
 
     # select a subdir randomly (including the root dir and it's direct audio childs,
-    # which coveres for there not being subdirs)
+    # which covers for there not being subdirs)
     sound_files = []
     selected_path = ''
     while len(sound_files) == 0:
@@ -266,6 +266,39 @@ def play_audio(dir, effect):
         time.sleep(duration + duration * random.random())
 
 
+def play_music(dir, volume):
+    global playing
+    playing = True
+
+    all_music_files = [list(map(lambda x: dirpath + os.sep + x, filenames)) for dirpath, _, filenames in os.walk(dir)]
+    # flatten:
+    all_music_files = [item for sublist in all_music_files for item in sublist]
+    path = all_music_files[random.randint(0, len(all_music_files))]
+    logger.debug('selected {} for music'.format(path))
+
+    fx = (
+        AudioEffectsChain()
+        .speed(2)
+    )
+
+    while playing:
+        # same as with play_sound. pydub spams logs, pygame can only read .ogg and .wav, reading with
+        # pygame and playing with pydub halves the pitch.
+        sound = pydub.AudioSegment.from_file(path)
+        a = np.array(sound.get_array_of_samples())
+
+        duration = len(a) / 44100
+        a = a.reshape((a.shape[0] // 2, 2))
+        a = a / 100 * volume
+        a = a.astype(np.int16)
+        a = apply_fx(fx, a)
+        wet = pygame.sndarray.make_sound(a)
+        pygame.mixer.Sound.play(wet)
+
+        # wait for the music to finish playing, afterwards loop it
+        time.sleep(duration)
+
+
 # loop once a day. inbetween there is a lot of time.sleep and waiting for fading and the sound process to finish
 while True:
     now = datetime.datetime.now()
@@ -301,8 +334,9 @@ while True:
         # This is an extra thread, so that fading in, out and playing sounds can happen at the same time.
         audio_thread = threading.Thread(target=play_audio, args=[args.audio_path, args.effect])
         audio_thread.start()
-        # music_thread = threading.Thread(target=play_music, args=[args.music_path, args.music_volume])
-        # music_thread.start()
+        if args.music_path is not None:
+            music_thread = threading.Thread(target=play_music, args=[args.music_path, args.music_volume])
+            music_thread.start()
 
         # start provided script using os.system or something and the path from command line args
         script_thread = None
@@ -342,6 +376,7 @@ while True:
         logger.info('fading out...')
         fade_volume(args.fade_duration, volume, 0)
 
-        # end music thread and then start over
+        # end audio and music thread (as soon as they finish playing) and then start over.
+        # music might keep playing for quite some time, but the volume faded out anyway so it's quiet
         playing = False
         
