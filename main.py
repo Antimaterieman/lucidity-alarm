@@ -11,9 +11,6 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import pygame
 pygame.init()
 import logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
 from pysndfx import AudioEffectsChain
 import numpy as np
 
@@ -34,8 +31,9 @@ parser.add_argument('--audio', metavar='PATH', dest='audio_path', help='path to 
 parser.add_argument('--max-duration', metavar='INT', dest='max_duration', help='after how many minutes to stop' +
     ' the alarm. Default: 30. If 0, will go on forever', type=float, default=30)
 parser.add_argument('--fade-duration', metavar='INT', dest='fade_duration', help='if provided and greater than ' +
-    '0, will start quiet and increase to --max-volume within the specified time in minutes. After --max-duration time ' +
-    'has passed, decreases the volume in the same way. Default 0', default=0, type=float)
+    '0, will start quiet and increase to --max-volume within the specified time in minutes (may also be a float: 0.5 ' +
+    'for 30 secs). After another --max-duration of time has passed, decreases the volume in the same way, so this is ' +
+    'added to the total duration twice. Default 0', default=0, type=float)
 parser.add_argument('--max-volume', metavar='INT', dest='max_volume', help='how many percent volume are the ' +
     'limit. Default 100', default=100, type=int)
 parser.add_argument('--effect', metavar='FLOAT', dest='effect', help='Between 0 and 100, how crazy ' +
@@ -82,6 +80,8 @@ if args.end:
     args.end = parse_time(args.end)
 # from here on every timestamp and duration is in seconds
 
+
+logger = logging.getLogger('lucidity-alarm')
 if args.debug:
     # sets the earliest alarm time to 1 second in the future
     # has 10 seconds until latest alarm time to observe
@@ -91,14 +91,18 @@ if args.debug:
     args.start = current_t + 1
     args.end = args.start + 1
     args.morph = 2
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
+
+logger.addHandler(logging.StreamHandler())
 
 volume = 100
 playing = False
 
 
 def time_to_string(seconds):
-    """transforms 3600 to 01:00:00 and 48610 to 13:30:10,
-    reversing the parse_time function.
+    """transforms 3600 to 01:00:00 and 48610 to 13:30:10, reversing the parse_time function.
 
     Examples:
         time_to_string(48600) = 13:30:00
@@ -119,10 +123,8 @@ def set_volume(percent, system=False):
     
     Percent is between 0 and 100.
 
-    If system is True, will control the system volume using
-    amixer instead. system can also be a string like "Master"
-    or "PCM", which is the amixer control. The amixer command
-    can help you find out what you want to control. Default is
+    If system is True, will control the system volume using amixer instead. system can also be a string like "Master"
+    or "PCM", which is the amixer control. The amixer command can help you find out what you want to control. Default is
     False."""
 
     percent = int(percent)
@@ -139,17 +141,15 @@ def set_volume(percent, system=False):
 
 
 def fade_volume(fading_time, start_v=0, end_v=100):
-    """fading_time in seconds, start_v and end_v in percent between
-    0 and 100. Will block during that time so it should be
-    started as a thread. Rises the volume in timesteps of 1
-    second."""
+    """fading_time in seconds, start_v and end_v in percent between 0 and 100. Will block during that time so it should
+    be started as a thread. Rises the volume in timesteps of 1 second."""
 
     end_t = time.time() + fading_time
     volume_step = (end_v - start_v) / fading_time
     new_volume = start_v
     while time.time() < end_t:
         logger.debug('new volume: {}'.format(int(new_volume)))
-        set_volume(new_volume)
+        set_volume(new_volume, True)
         time.sleep(1)
         new_volume += volume_step
     set_volume(end_v)
@@ -165,11 +165,9 @@ def apply_fx(fx, a):
 
 
 def play_music(dir, effect, relax):
-    """dir is the path to where all the sound files are stored,
-    will select it or one of it's subdirectories randomly to
-    decide about which sound files to use. Will not recurse
-    into subdirectories of the selected subdirectory.
-    effect is an int between 0 (none) and 100 (full)"""
+    """dir is the path to where all the sound files are stored, will select it or one of it's subdirectories randomly to
+    decide about which sound files to use. Will not recurse into subdirectories of the selected subdirectory. effect is
+    an int between 0 (none) and 100 (full)"""
 
     global playing
     playing = True
@@ -179,11 +177,15 @@ def play_music(dir, effect, relax):
     reverb = 0
     reverse = False
     if effect > 0:
-        highest_pitch = 1.3
+        # higher pitches are more annoying or something
+        highest_pitch = 1.1
         lowest_pitch = 0.7
         pitch = (((random.random() * (highest_pitch - lowest_pitch)) + lowest_pitch) * effect + 1 * (100 - effect)) / 100
         reverb = random.randint(0, effect)
         reverse = random.randint(0, 1) == True
+        if reverse:
+            # the reverse reverb was quite annoying for me when there is was too much
+            reverb /= 2
 
     # start playing random files from the provided path and its subdirs
     # apply pitch to all files
@@ -208,12 +210,13 @@ def play_music(dir, effect, relax):
         .speed(pitch)
     )
 
+    if reverse:
+        # add both reverse and normal reverb
+        fx.reverse()
+        fx.reverb(reverberance=reverb / 2)
+        fx.reverse()
     # reverb
-    if reverse:
-        fx.reverse()
     fx.reverb(reverberance=reverb)
-    if reverse:
-        fx.reverse()
 
     while playing:
         original = pygame.mixer.Sound(sound_files[random.randint(0, len(sound_files) - 1)])
@@ -227,30 +230,39 @@ def play_music(dir, effect, relax):
         else:
             a = np.concatenate([a] + [zeros] * 2)
 
-	# between 33% and 100% of the current volume
+	    # between 33% and 100% of the current volume
         a = (a * (1/3 + random.random() * 2/3) * volume / 100).astype(np.int16)
         a = apply_fx(fx, a)
 
         wet = pygame.sndarray.make_sound(a)
+
         pygame.mixer.Sound.play(wet)
         
-	# at least a third of the duration, at most duration * relax
+	    # at least a third of the duration, at most duration * relax
         time.sleep(duration * (1/3 + random.random() * 2/3) * relax)
 
 
+# loop once a day. inbetween there is a lot of time.sleep and waiting for fading and the sound process to finish
 while True:
     now = datetime.datetime.now()
+    # timestamp relative to the start of the day:
     current_t = now.hour * 3600 + now.minute * 60 + now.second
 
     will_alarm = random.randint(0, 100) <= args.probability
-    # make double secure, because an alarm can be quite important,
-    # so also check if probability is below 100 to cover for bugs
     if not will_alarm and args.probability < 100:
+        # it was decided for this particular day at random that no alarm will be triggered
         logger.info('skipping the next alarm, sleeping for a day now')
-        time.sleep(25 * 60 * 60)
+        # tomorrow is another chance for the alarm to fire:
+        time.sleep(24 * 60 * 60)
     else:
+        # it will definitely fire today, but not before args.start.
+        # example 1: current_t is 05:00, start is 08:00. sleep at least 3 hours.
+        # example 2: current_t is 09:00, start is 08:00. sleep for 23 hours.
+        # this means that in order to trigger for the same day, the current_t may not be after args.start, even if it
+        # is still before args.end
         sleep_duration = (args.start - current_t) % (24 * 3600)
-        if not args.end is None:
+        # if additionally args.end is set, for example to 10:00, then add a random time between 0 and 2 hours to it
+        if args.end is not None:
             sleep_duration += random.randint(0, (args.end - args.start) % (24 * 3600))
 
         logger.info('sleeping until next alarm will be triggered for {}'.format(time_to_string(sleep_duration)))
@@ -258,18 +270,22 @@ while True:
         # now wait. Hide that debug message later because it should not be predictable for the user
         time.sleep(sleep_duration)
 
+        # ------------------
+        # alarm triggers now
+        # ------------------
+
+        # play music in extra process and provide the path and max random effect level as params.
+        # in main thread check if end time is reached and then stop. This is an extra thread, so that fading in, out
+        # and playing sounds can happen at the same time.
+        music_thread = threading.Thread(target=play_music, args=[args.audio_path, args.effect, args.relax])
+        music_thread.start()
+
         # start provided script using os.system or something and the path from command line args
         script_thread = None
         if args.script:
             script_thread = threading.Thread(target=os.system, args=args.script)
             script_thread.start()
 
-        # set volume to 0 (if fading-in is active)
-        fading_thread = None
-        if args.fade_duration:
-            logger.info('fading in...')
-            fading_thread = threading.Thread(target=fade_volume, args=[args.fade_duration, 0, args.max_volume])
-            fading_thread.start()
 
         # try to unlock linux screensaver with dbus
         if args.unlock:
@@ -277,11 +293,11 @@ while True:
         # turn tv on with lib-cec
         if args.cec:
             logger.info('not yet implemented')
-        
-        # play music in extra process and provide the path and max random effect level as params.
-        # in main thread check if end time is reached and then stop
-        music_thread = threading.Thread(target=play_music, args=[args.audio_path, args.effect, args.relax])
-        music_thread.start()
+
+        fading_thread = None
+        if args.fade_duration:
+            logger.info('fading in...')
+            fade_volume(args.fade_duration, 0, args.max_volume)
 
         # wait for the max duration to be reached
         if args.max_duration > 0:
@@ -295,19 +311,12 @@ while True:
             # because the main process stops it normally by setting playing to False
             music_thread.join()
 
-        
         if script_thread and script_thread.is_alive():
             logger.info('waiting for script to finish')
             script_thread.join()
-            
-        # fade out the volume
-        if fading_thread and fading_thread.is_alive():
-            # first make sure the previous job for fading in is done
-            fading_thread.join()
+
         logger.info('fading out...')
-        fading_thread = threading.Thread(target=lambda: fade_volume(args.fade_duration, volume, 0))
-        fading_thread.start()
-        fading_thread.join()
+        fade_volume(args.fade_duration, volume, 0)
 
         # end music thread and then start over
         playing = False

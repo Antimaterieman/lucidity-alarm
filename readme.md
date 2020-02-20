@@ -26,6 +26,26 @@ the alarm clock will decide for one of the voices from a random subdirectory eac
 This is based on an observation: If the TV is running in the morning
 dreams are affected by its sound.
 
+## Usage
+
+**GUI**
+
+start a gtk interface with
+
+```bash
+python interface.py
+```
+
+**CLI**
+
+help:
+
+```bash
+python main.py --help
+```
+
+you can find an example in `test.sh`
+
 ## How to Contribute
 
 **Those super akward audio recordings in the audio dir**
@@ -42,9 +62,11 @@ or you can cut and compress it yourself to .ogg files and directly make a pull r
 
 ## Dependencies
 
+use those commands in manjaro/arch to get the needed dependencies. package names may be similar in ubuntu using apt
+
 ```
-apt install sox
-pip3 install pysndfx
+sudo pacman -S sox python-pygame
+sudo pip3 install pysndfx
 ```
 
 ## Roadmap
@@ -58,8 +80,11 @@ pip3 install pysndfx
 - make GUI and add button to add it to autostart and make it minimizable to the system tray
 - collect audiorecordings for lucid dream induction from members of lucid dreaming forums
 - make sure it works on windows
+- PEP 257 docstrings
+- add the option to specify a folder for music files, e.g. to get some ambient texture play in the background.
 
 **pies in the sky**
 - if it works, make android app that does the same thing
 - make android app that detects movements and sounds in bed, sends message to the computer that
 an REM phase might be happening right now and increase the chance of being triggered at that time
+
