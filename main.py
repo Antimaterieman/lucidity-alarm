@@ -7,12 +7,15 @@ import random
 import os
 import threading
 import multiprocessing
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
-import pygame
-pygame.init()
 import logging
 from pysndfx import AudioEffectsChain
 import numpy as np
+import pydub
+import array
+# because pydub prints a ton of log, use pygame to playback arrays:
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+import pygame
+pygame.init()
 
 
 # controls are in minutes because that's easier and convenient I guess
@@ -45,8 +48,6 @@ parser.add_argument('--unlock', dest='unlock', help='Will try to unlock the scre
 parser.add_argument('--cec-on', dest='cec', help='Will try to turn on the monitor/TV using ' +
     'CEC over hdmi. There aren\'t many computer devices that support this. The raspberry does. Default False',
     default=False, action='store_true')
-parser.add_argument('--relax', dest='relax', help='The maximum multiple of the audio file duration to wait until the ' +
-    'next audio file playback. Default 10', default=10, type=int)
 parser.add_argument('--debug', dest='debug', help=argparse.SUPPRESS, default=False, action='store_true')
 parser.add_argument('--music', metavar='PATH', dest='music_path', help='path to a folder that contains music files ' +
     'for the alarm (.ogg). Will play a random track out of it or any of its subdirectories', type=str)
@@ -153,7 +154,7 @@ def fade_volume(fading_time, start_v=0, end_v=100):
     volume_step = (end_v - start_v) / fading_time
     new_volume = start_v
     while time.time() < end_t:
-        logger.debug('new volume: {}'.format(int(new_volume)))
+        # logger.debug('new volume: {}'.format(int(new_volume)))
         set_volume(new_volume, True)
         time.sleep(1)
         new_volume += volume_step
@@ -169,7 +170,7 @@ def apply_fx(fx, a):
     return a.astype(np.int16)
 
 
-def play_music(dir, effect, relax):
+def play_audio(dir, effect):
     """dir is the path to where all the sound files are stored, will select it or one of it's subdirectories randomly to
     decide about which sound files to use. Will not recurse into subdirectories of the selected subdirectory. effect is
     an int between 0 (none) and 100 (full)"""
@@ -189,7 +190,7 @@ def play_music(dir, effect, relax):
         pitch = (((random.random() * (highest_pitch - lowest_pitch)) + lowest_pitch) * effect + 1 * (100 - effect)) / 100
         reverb = random.randint(0, effect)
         # the reverse reverb was quite annoying for me when there was too much. have less of it
-        reverse_reverb = random.randint(0, effect / 3)
+        reverse_reverb = random.randint(0, effect // 3)
 
     # start playing random files from the provided path and its subdirs
     # apply pitch to all files
@@ -214,17 +215,27 @@ def play_music(dir, effect, relax):
         .speed(pitch)
     )
 
+    # because arrays read with pydub are somehow twice as long as those from pygame,
+    # but pygame is used for playback because pydub spams logs that cannot be disabled.
+    # The difference in array size halves the pitch, fix it:
+    fx.speed(2)
+
     if reverse_reverb > 0:
         fx.reverse()
         fx.reverb(reverberance=reverse_reverb)
         fx.reverse()
     if reverb > 0:
-        fx.reverb(reverberance=reverb)
+        fx.reverb(reverberance=100)
 
     while playing:
-        original = pygame.mixer.Sound(sound_files[random.randint(0, len(sound_files) - 1)])
-        a = pygame.sndarray.array(original)
+        path = sound_files[random.randint(0, len(sound_files) - 1)]
+        logger.debug('playing {}'.format(path))
+        sound = pydub.AudioSegment.from_file(path)
+        a = np.array(sound.get_array_of_samples())
+
         duration = len(a) / 44100 * (1 / pitch)
+        a = a.reshape((a.shape[0] // 2, 2))
+
         zeros = np.zeros(a.shape, a.dtype)
 
         # add plenty of room for reverb in the array
@@ -241,13 +252,18 @@ def play_music(dir, effect, relax):
 
         a = a.astype(np.int16)
         a = apply_fx(fx, a)
+        
+        # remove the padded zeros
+        # formt is [[L, R], [L, R], ...]
+        # remove all entries of [L, R] for which both are 0. may remove some zero samples from within
+        # the tracks, but it's rather unlikely and insignificant
+        a = a[a.sum(axis = 1) != 0]
 
         wet = pygame.sndarray.make_sound(a)
-
         pygame.mixer.Sound.play(wet)
-        
-	    # at least a third of the duration, at most duration * relax
-        time.sleep(duration * (1/3 + random.random() * 2/3) * relax)
+
+        # the longer the audio sample was, the longer to wait until the next one
+        time.sleep(duration + duration * random.random())
 
 
 # loop once a day. inbetween there is a lot of time.sleep and waiting for fading and the sound process to finish
@@ -282,11 +298,11 @@ while True:
         # alarm triggers now
         # ------------------
 
-        # play music in extra process and provide the path and max random effect level as params.
-        # in main thread check if end time is reached and then stop. This is an extra thread, so that fading in, out
-        # and playing sounds can happen at the same time.
-        music_thread = threading.Thread(target=play_music, args=[args.audio_path, args.effect, args.relax])
-        music_thread.start()
+        # This is an extra thread, so that fading in, out and playing sounds can happen at the same time.
+        audio_thread = threading.Thread(target=play_audio, args=[args.audio_path, args.effect])
+        audio_thread.start()
+        # music_thread = threading.Thread(target=play_music, args=[args.music_path, args.music_volume])
+        # music_thread.start()
 
         # start provided script using os.system or something and the path from command line args
         script_thread = None
@@ -315,9 +331,9 @@ while True:
             time.sleep(alarm_duration)
         else:
             logger.info('alarm will go on forever, because --max-duration is set to 0')
-            # wait for the music_thread to join which will ofc never happen
+            # wait for the audio_thread to join which will ofc never happen
             # because the main process stops it normally by setting playing to False
-            music_thread.join()
+            audio_thread.join()
 
         if script_thread and script_thread.is_alive():
             logger.info('waiting for script to finish')

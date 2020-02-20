@@ -58,7 +58,8 @@ Be creative in what to say.
 
 You can post a link to your single high quality audio recording and I can
 cut and compress it here: https://github.com/antimaterieman/lucidity-alarm/issues,
-or you can cut and compress it yourself to .ogg files and directly make a pull request on github.
+or you can cut and compress it yourself directly make a pull request on github. Since lucidity-alarm uses
+pydub which uses ffmpeg, many formats should be compatible.
 
 ## Dependencies
 
@@ -66,7 +67,7 @@ use those commands in manjaro/arch to get the needed dependencies. package names
 
 ```
 sudo pacman -S sox python-pygame
-sudo pip3 install pysndfx
+sudo pip3 install pysndfx pydub
 ```
 
 ## Roadmap
