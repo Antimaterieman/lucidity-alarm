@@ -70,15 +70,10 @@ sudo pacman -S sox python-pygame
 sudo pip3 install pysndfx pydub
 ```
 
-## Roadmap
+## TODO
 
-**done**
-- make the command line work, playing sounds as described above
-- provide at least some audio files
-
-**todo**
-- add piping out of and into np arrays to python sox, so that pysndfx can be replaced
 - make GUI and add button to add it to autostart and make it minimizable to the system tray
+- add config that loads when the GUI starts
 - collect audiorecordings for lucid dream induction from members of lucid dreaming forums
 - make sure it works on windows
 - PEP 257 docstrings
