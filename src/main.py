@@ -5,17 +5,16 @@ import datetime
 import time
 import random
 import os
+import sys
 import threading
 import logging
 from pysndfx import AudioEffectsChain
 import numpy as np
 import pydub
 import array
-# because pydub prints a ton of log, use pygame to playback arrays:
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
-import pygame
-pygame.init()
-pygame.mixer.init()
+
+# pygame screws up multiprocessing, pydub spams the console
+import sounddevice
 
 logger = logging.getLogger('lucidity-alarm')
 
@@ -58,7 +57,6 @@ def time_to_string(seconds):
 
 class Main():
     def __init__(self, args):
-        print('__init__')
         self.args = args
         self.main()
 
@@ -114,11 +112,6 @@ class Main():
             .speed(pitch)
         )
 
-        # because arrays read with pydub are somehow twice as long as those from pygame,
-        # but pygame is used for playback because pydub spams logs that cannot be disabled.
-        # The difference in array size halves the pitch, fix it:
-        fx.speed(2)
-
         if reverse_reverb > 0:
             fx.reverse()
             fx.reverb(reverberance=reverse_reverb)
@@ -127,7 +120,6 @@ class Main():
             fx.reverb(reverberance=reverb)
 
         while playing:
-            print(playing)
             path = sound_files[random.randint(0, len(sound_files) - 1)]
             logger.debug('playing {}'.format(path))
             sound = pydub.AudioSegment.from_file(path)
@@ -135,8 +127,6 @@ class Main():
 
             duration = len(a) / 44100 * (1 / pitch)
             a = a.reshape((a.shape[0] // 2, 2))
-            print(duration)
-            print(a.max(), a.min())
 
             # add plenty of room for reverb in the array
             zeros = np.zeros(a.shape, a.dtype)
@@ -146,13 +136,11 @@ class Main():
                 a = np.concatenate([a] + [zeros] * 2)
 
             # between 33% and 100% of the current volume
-            print(a.max(), a.min())
             a = (a * (1/3 + random.random() * 2/3) * volume / 100)
 
             # normalize to +- 32768 (16 bit)
             max_sample = a.max()
             min_sample = a.min()
-            print(a.max(), a.min())
             if (max_sample != 0 or min_sample != 0):
                 a = (a * (2**16 / 2) / max(abs(max_sample), abs(min_sample)))
 
@@ -164,10 +152,7 @@ class Main():
                 # remove all entries of [L, R] for which both are 0. may remove some zero samples from within
                 # the tracks, but it's rather unlikely and insignificant
                 a = a[a.sum(axis = 1) != 0]
-
-                print(a.max(), a.min())
-                wet = pygame.sndarray.make_sound(a)
-                pygame.mixer.Sound.play(wet)
+                sounddevice.play(a, 44100)
 
             # The longer the audio sample was, the longer to wait until the next one.
             # Randomize a bit between 0.5 and 1 of the maximum pause
@@ -222,7 +207,6 @@ class Main():
             logger.error('provided music directory is empty')
         else:
             random_index = random.randint(0, len(all_music_files))
-            print(random_index, all_music_files)
             path = all_music_files[random_index]
             logger.debug('selected {} for music'.format(path))
 
@@ -232,8 +216,6 @@ class Main():
             )
 
             while playing:
-                # same as with play_sound. pydub spams logs, pygame can only read .ogg and .wav, reading with
-                # pygame and playing with pydub halves the pitch.
                 sound = pydub.AudioSegment.from_file(path)
                 a = np.array(sound.get_array_of_samples())
 
@@ -242,8 +224,7 @@ class Main():
                 a = a / 100 * volume
                 a = a.astype(np.int16)
                 a = self.apply_fx(fx, a)
-                wet = pygame.sndarray.make_sound(a)
-                pygame.mixer.Sound.play(wet)
+                sounddevice.play(a, 44100)
 
                 # wait for the music to finish playing, afterwards loop it
                 time.sleep(duration)
@@ -337,7 +318,6 @@ class Main():
                 # music might keep playing for quite some time, but the volume faded out anyway so it's quiet.
                 # unless the user turns the volume up...
                 playing = False
-                print(2, playing)
 
 
 if __name__ == '__main__':

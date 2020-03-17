@@ -9,11 +9,6 @@ import time
 
 from main import Main, parse_time
 
-def start():
-    while True:
-        print('hanging')
-        time.sleep(1)
-
 class Interface():
     def __init__(self):
         gladeFile = 'main.glade'
@@ -35,16 +30,8 @@ class Interface():
         window.show()
 
     def test(self, button):
-        print('click')
-        if not self.main is None and self.main.is_alive():
-            print('terminate')
-            self.main.terminate()
-            self.main.join()
-            print('is_alive', self.main.is_alive())
-        else:
-            print('start')
-            self.main = multiprocessing.Process(target=start, args=[])
-            self.main.start()
+        self.main = multiprocessing.Process(target=self.start, args=[True])
+        self.main.start()
 
     def toggle(self, switch, gparam):
         if switch.get_active():
@@ -56,12 +43,9 @@ class Interface():
     def stop(self, button=None):
         """if the test alarm is running, stop it completely. If the normal alarm is running,
         only stop it until next night"""
-        print('stop')
         if not self.main is None and self.main.is_alive():
-            print('terminate')
             self.main.terminate()
             self.main.join()
-            print(self.main.is_alive())
 
     def start(self, debug=None):
         if debug:
@@ -94,8 +78,7 @@ class Interface():
             'debug': debug
         }
 
-        print('Main(args)')
-        # Main(args)
+        Main(args)
 
 if __name__ == '__main__':
     Interface()

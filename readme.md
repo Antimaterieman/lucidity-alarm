@@ -66,8 +66,7 @@ pydub which uses ffmpeg, many formats should be compatible.
 use those commands in manjaro/arch to get the needed dependencies. package names may be similar in ubuntu using apt
 
 ```
-sudo pacman -S sox python-pygame
-sudo pip3 install pysndfx pydub
+sudo pip3 install pysndfx pydub sounddevice
 ```
 
 ## TODO
