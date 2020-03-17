@@ -6,7 +6,6 @@ import time
 import random
 import os
 import threading
-import multiprocessing
 import logging
 from pysndfx import AudioEffectsChain
 import numpy as np
@@ -16,6 +15,7 @@ import array
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import pygame
 pygame.init()
+pygame.mixer.init()
 
 logger = logging.getLogger('lucidity-alarm')
 
@@ -58,6 +58,7 @@ def time_to_string(seconds):
 
 class Main():
     def __init__(self, args):
+        print('__init__')
         self.args = args
         self.main()
 
@@ -134,21 +135,24 @@ class Main():
 
             duration = len(a) / 44100 * (1 / pitch)
             a = a.reshape((a.shape[0] // 2, 2))
-
-            zeros = np.zeros(a.shape, a.dtype)
+            print(duration)
+            print(a.max(), a.min())
 
             # add plenty of room for reverb in the array
+            zeros = np.zeros(a.shape, a.dtype)
             if reverse:
                 a = np.concatenate([zeros] * 2 + [a])
             else:
                 a = np.concatenate([a] + [zeros] * 2)
 
             # between 33% and 100% of the current volume
+            print(a.max(), a.min())
             a = (a * (1/3 + random.random() * 2/3) * volume / 100)
 
             # normalize to +- 32768 (16 bit)
             max_sample = a.max()
             min_sample = a.min()
+            print(a.max(), a.min())
             if (max_sample != 0 or min_sample != 0):
                 a = (a * (2**16 / 2) / max(abs(max_sample), abs(min_sample)))
 
@@ -161,6 +165,7 @@ class Main():
                 # the tracks, but it's rather unlikely and insignificant
                 a = a[a.sum(axis = 1) != 0]
 
+                print(a.max(), a.min())
                 wet = pygame.sndarray.make_sound(a)
                 pygame.mixer.Sound.play(wet)
 
@@ -245,6 +250,7 @@ class Main():
 
     def main(self):
         args = self.args
+        debug = args.get('debug', False)
         # loop once a day. inbetween there is a lot of time.sleep and waiting for fading and the sound process to finish
         while True:
             now = datetime.datetime.now()
@@ -252,21 +258,24 @@ class Main():
             current_t = now.hour * 3600 + now.minute * 60 + now.second
 
             will_alarm = random.randint(0, 100) <= args.get('probability')
-            if not will_alarm and args.get('probability') < 100:
+            if not debug and not will_alarm and args.get('probability') < 100:
                 # it was decided for this particular day at random that no alarm will be triggered
                 logger.info('skipping the next alarm, sleeping for a day now')
                 # tomorrow is another chance for the alarm to fire:
                 time.sleep(24 * 60 * 60)
             else:
-                # it will definitely fire today, but not before args.get('start').
-                # example 1: current_t is 05:00, start is 08:00. sleep at least 3 hours.
-                # example 2: current_t is 09:00, start is 08:00. sleep for 23 hours.
-                # this means that in order to trigger for the same day, the current_t may not be after args.get('start'), even if it
-                # is still before args.get('end')
-                sleep_duration = (args.get('start') - current_t) % (24 * 3600)
-                # if additionally args.get('end') is set, for example to 10:00, then add a random time between 0 and 2 hours to it
-                if args.get('end') is not None:
-                    sleep_duration += random.randint(0, (args.get('end') - args.get('start')) % (24 * 3600))
+                if debug:
+                    sleep_duration = 0
+                else:
+                    # it will definitely fire today, but not before args.get('start').
+                    # example 1: current_t is 05:00, start is 08:00. sleep at least 3 hours.
+                    # example 2: current_t is 09:00, start is 08:00. sleep for 23 hours.
+                    # this means that in order to trigger for the same day, the current_t may not be after args.get('start'), even if it
+                    # is still before args.get('end')
+                    sleep_duration = (args.get('start') - current_t) % (24 * 3600)
+                    # if additionally args.get('end') is set, for example to 10:00, then add a random time between 0 and 2 hours to it
+                    if args.get('end') is not None:
+                        sleep_duration += random.randint(0, (args.get('end') - args.get('start')) % (24 * 3600))
 
                 logger.info('sleeping until next alarm will be triggered for {}'.format(time_to_string(sleep_duration)))
 

@@ -45,7 +45,7 @@
             <property name="row_homogeneous">True</property>
             <property name="column_homogeneous">True</property>
             <child>
-              <object class="GtkEntry" id="fade_time">
+              <object class="GtkEntry" id="fade_duration">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="placeholder_text" translatable="yes">minutes</property>
@@ -233,7 +233,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkFileChooserButton" id="voices_dir">
+              <object class="GtkFileChooserButton" id="voices_path">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="action">select-folder</property>
@@ -269,7 +269,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkFileChooserButton" id="music_dir">
+              <object class="GtkFileChooserButton" id="music_path">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="action">select-folder</property>
@@ -392,6 +392,45 @@
           <packing>
             <property name="left_attach">0</property>
             <property name="top_attach">6</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkGrid">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="column_spacing">10</property>
+            <property name="row_homogeneous">True</property>
+            <property name="column_homogeneous">True</property>
+            <child>
+              <object class="GtkButton" id="stop">
+                <property name="label" translatable="yes">Stop</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="tooltip_text" translatable="yes">Stops either the test or normal alarm</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="test">
+                <property name="label" translatable="yes">Test</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="tooltip_text" translatable="yes">Starts the alarm right now. Use the Stop button to stop it.</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="left_attach">0</property>
+            <property name="top_attach">10</property>
           </packing>
         </child>
       </object>
